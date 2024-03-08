@@ -1,15 +1,32 @@
 from flask import Flask ,jsonify , request
 import requests
 import logging
-
-
+import markdown
+from flask_cors import CORS
+import traceback
 app = Flask(__name__)
-logging.basicConfig(level=logging.DEBUG)
+CORS(app)
+import re 
+logging.basicConfig(level=logging.DEBUG,
+                    handlers=[logging.FileHandler('app.log', mode='a')],
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 logger = logging.getLogger(__name__)
 
 base_url = "https://api.openai.com/v1/"
-api_key = "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"
+api_key = "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"
 assistant_id = "asst_onq8ERkgkhL7jI5tXYayLRsq"
+
+def convert_backticks(text):
+    count = 0
+    while '```' in text:
+        if count % 2 == 0:
+            text = re.sub(r'```', '<$>', text, count=1)
+        else:
+            text = re.sub(r'```', '<^>', text, count=1)
+        count += 1
+    return text
+
 def get_first_url_response(thread_id, run_id, headers):
     # Log usage
     logger.info("Getting response for the first URL...")
@@ -36,7 +53,8 @@ def get_second_url_response(thread_id, run_id, headers):
     return response_json
 
 
-def status_check(thread_id, run_id, headers):
+
+def status_update(thread_id, run_id, headers):
     # Log usage
     logger.info("Checking status...")
 
@@ -44,9 +62,17 @@ def status_check(thread_id, run_id, headers):
 
     second_response_json = get_second_url_response(thread_id, run_id, headers)
 
-    # Extract status
-    status = second_response_json.get("data")[0]['status'] == "completed"
-    return status
+    if second_response_json.get("data"):
+        # Extract status if there are elements in the list
+        status = second_response_json.get("data")[0]['status'] == "completed"
+        return status
+    else:
+        # Handle the case where the list is empty (no data returned)
+        logger.error("No data returned in response")
+        return False
+
+
+
 
 def check_status(thread_id, run_id, headers,msg_id):
     # Log usage
@@ -54,7 +80,7 @@ def check_status(thread_id, run_id, headers,msg_id):
 
     while True:  
         # Make requests to check status
-        status = status_check(thread_id, run_id, headers)
+        status = status_update(thread_id, run_id, headers)
         
         if status:
             # Log usage
@@ -64,10 +90,19 @@ def check_status(thread_id, run_id, headers,msg_id):
             url = base_url + "threads/" + thread_id + "/messages?before=" + msg_id + "&limit=10"
             ans = requests.get(url, headers=headers).json()
             text_values = []
+            text_values_converted = {}
+
+            count = 0
             for item in ans['data']:
+                
                 if item['content']:  # Check if content is not empty
-                    text_values.append(item['content'][0]['text']['value'])
-            return jsonify(text_values,"               *****************************         BELOW ONE IS FOR TESTING PURPOSE ONLY, PLEASE DON'T CARE THIS INFORMATION.THANKYOU               ************************",ans)
+                    key = "key_" + str(count)
+                    count += 1
+                    text_values.append(markdown.markdown(item['content'][0]['text']['value']))
+
+            
+
+            return jsonify(text_values) #  ,"               *****************************         BELOW ONE IS FOR TESTING PURPOSE ONLY, PLEASE DON'T CARE THIS INFORMATION.THANKYOU               ************************",ans)
 
 
 
@@ -116,33 +151,40 @@ def generate_headers(api_key):
 
 @app.route("/query",methods=["POST"])
 def query():
-    data = request.get_json()
-    query = data['query']
-    
-    # headers payload
-    headers = generate_headers(api_key)
-
-    # Create a thread
-    thread_id = create_thread(base_url, headers)
-
-    # Create a message in the thread
-    msg_id = create_message(base_url, thread_id, headers, query)
-
-    # Create a run in the thread
-    run_id = create_run(base_url, thread_id, assistant_id, headers)
-
-    # Get messages before a specific message ID with a limit of 10
-    response_json = get_messages_before(base_url, thread_id, msg_id, 10, headers)
-
-    
-    if response_json.get('data') and response_json.get('data')[0]['content']:
-        first_ans = response_json.get("data")[0]['content'][0]['text']['value']
-        logger.info(f"first_ans: {first_ans}")
-        return jsonify(first_ans)
-    else:
-    #     # Call the function to check status repeatedly
-        return check_status(thread_id, run_id, headers,msg_id)
+    try:
+        data = request.get_json()
+        query = data['query']
         
+        # headers payload
+        headers = generate_headers(api_key)
+
+        # Create a thread
+        thread_id = create_thread(base_url, headers)
+
+        # Create a message in the thread
+        msg_id = create_message(base_url, thread_id, headers, query)
+
+        # Create a run in the thread
+        run_id = create_run(base_url, thread_id, assistant_id, headers)
+
+        # Get messages before a specific message ID with a limit of 10
+        response_json = get_messages_before(base_url, thread_id, msg_id, 10, headers)
+
+        
+        if response_json.get('data') and response_json.get('data')[0]['content']:
+            text_values = response_json.get("data")[0]['content'][0]['text']['value']
+            logger.info(f"first_ans: {text_values}")
+            return jsonify(text_values)
+        else:
+        #     # Call the function to check status repeatedly
+            return check_status(thread_id, run_id, headers,msg_id)
+    
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        traceback.print_exc()  # Print the traceback to console
+        logger.exception("Exception occurred", exc_info=True)  # Log the exception with full traceback
+        return "An error occurred. Please check the logs for more details."
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5050)
+    app.run(debug=True, host='0.0.0.0', port=5055)
+
