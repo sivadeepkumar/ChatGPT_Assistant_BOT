@@ -1,20 +1,25 @@
 from flask import Flask ,jsonify , request
 import requests
 import logging
-import markdown
+
 from flask_cors import CORS
 import traceback
 app = Flask(__name__)
 CORS(app)
 import re 
+from dotenv import load_dotenv
+import os 
+load_dotenv()
+api_key = os.getenv("API_KEY")
+
 logging.basicConfig(level=logging.DEBUG,
                     handlers=[logging.FileHandler('app.log', mode='a')],
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+
 logger = logging.getLogger(__name__)
 
 base_url = "https://api.openai.com/v1/"
-api_key = "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"
 assistant_id = "asst_onq8ERkgkhL7jI5tXYayLRsq"
 
 def convert_backticks(text):
@@ -98,11 +103,11 @@ def check_status(thread_id, run_id, headers,msg_id):
                 if item['content']:  # Check if content is not empty
                     key = "key_" + str(count)
                     count += 1
-                    text_values.append(markdown.markdown(item['content'][0]['text']['value']))
+                    text_values.append(item['content'][0]['text']['value'])
 
             
 
-            return jsonify(text_values) #  ,"               *****************************         BELOW ONE IS FOR TESTING PURPOSE ONLY, PLEASE DON'T CARE THIS INFORMATION.THANKYOU               ************************",ans)
+            return jsonify(text_values)                              #  ,"               *****************************         BELOW ONE IS FOR TESTING PURPOSE ONLY, PLEASE DON'T CARE THIS INFORMATION.THANKYOU               ************************",ans)
 
 
 
@@ -171,13 +176,13 @@ def query():
         response_json = get_messages_before(base_url, thread_id, msg_id, 10, headers)
 
         
-        if response_json.get('data') and response_json.get('data')[0]['content']:
-            text_values = response_json.get("data")[0]['content'][0]['text']['value']
-            logger.info(f"first_ans: {text_values}")
-            return jsonify(text_values)
-        else:
+        # if response_json.get('data') and response_json.get('data')[0]['content']:
+        #     text_values = response_json.get("data")[0]['content'][0]['text']['value']
+        #     logger.info(f"first_ans: {text_values}")
+        #     return jsonify([text_values])
+        # else:
         #     # Call the function to check status repeatedly
-            return check_status(thread_id, run_id, headers,msg_id)
+        return check_status(thread_id, run_id, headers,msg_id)
     
     except Exception as e:
         logger.error(f"An error occurred: {e}")

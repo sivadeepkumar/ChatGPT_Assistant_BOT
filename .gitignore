@@ -5,3 +5,7 @@
 /langchain_chatbot_OpenAI
 /gpt4all
 /pdf_to_text.py
+
+
+/app_socket.py 
+/app_trail.py 

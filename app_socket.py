@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 base_url = "https://api.openai.com/v1/"
-api_key = "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"
+api_key = ""
 assistant_id = "asst_onq8ERkgkhL7jI5tXYayLRsq"
 
 def get_first_url_response(thread_id, run_id, headers):
